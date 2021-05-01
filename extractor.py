@@ -5,7 +5,7 @@ import svgwrite
 import copy
 from xml.dom import minidom
 import numpy as np
-
+import cv2
 def main():
 
     imgs_list = open('cubicasa5k/val.txt', 'r').readlines()
@@ -14,22 +14,139 @@ def main():
 
 def parse(path):
     svg = minidom.parse('cubicasa5k'+path[:-1]+'model.svg')
-    width=svg.getElementsByTagName('svg')[0].getAttribute('width')
-    height=svg.getElementsByTagName('svg')[0].getAttribute('height')
+
+    im = cv2.imread('cubicasa5k' + path[:-1] + 'F1_scaled.png')
+    h, w, c = im.shape
+
+    width=w
+    height=h
     x_res, y_res = [], []
     results = np.array([])
     orientation = np.array([])
     for e in svg.getElementsByTagName('g'):
 
         id = e.getAttribute('id')
-        if id == "Wall" or id == "Window" or id == "Door":
+
+        #dont forget to add or
+        if id == "Wall":
+
+
+            x, y, orient = getBBox(e)
+            if orient=='v' or orient=='h':
+                segmentWallX, segmentWallY = segmentWall(e)
+                count=0
+                for l in segmentWallX:
+                    x_res.append(l)
+                    y_res.append(segmentWallY[count])
+                    results=np.append(results,"Wall")
+                    orientation = np.append(orientation, orient)
+                    count=count+1
+
+            if orient=='na':
+                print('na')
+                results = np.append(results, id)
+                x_res.append(x)
+                y_res.append(y)
+                orientation = np.append(orientation, orient)
+        if id=="Door" or id=="Window":
             x, y, orient = getBBox(e)
             results = np.append(results, id)
             x_res.append(x)
             y_res.append(y)
             orientation = np.append(orientation, orient)
+
     validate(results,x_res,y_res,'cubicasa5k'+path[:-1])
     exportToXml(results,x_res,y_res,orientation,path,width,height)
+def segmentWall(e):
+    x,y,orient=getBBox(e)
+
+    x.sort()
+    y.sort()
+
+    if orient=='v':
+
+        yNew=[y[1],y[2]]
+
+        newWallsX=[]
+        newWallsY=[]
+        kl=-1
+        for seg in e.getElementsByTagName('g'):
+            kl=kl+1
+            id=seg.getAttribute('id')
+
+            if id=='Door' or id=='Window':
+                xSeg,ySeg,orientSeg=getBBox(e.getElementsByTagName('g')[kl])
+
+                ySeg.sort()
+
+                yNew.append(ySeg[1])
+                yNew.append(ySeg[2])
+
+        yNew.sort()
+        count=0
+        for i in range(len(yNew)):
+            if i%2==0:
+
+                newWallsX.append(x)
+
+                newWallsY.append([yNew[i],yNew[i+1]])
+                count = count + 1
+
+        retWallsX = []
+        retWallsY = []
+        for i in range(len(newWallsX)):
+            retWallsX.append([newWallsX[i][0],newWallsX[i][3],newWallsX[i][3],newWallsX[i][0]])
+            retWallsY.append([newWallsY[i][0],newWallsY[i][0],newWallsY[i][1],newWallsY[i][1]])
+
+        return retWallsX,retWallsY
+    if orient=='h':
+
+        xNew=[x[1],x[2]]
+
+        newWallsX=[]
+        newWallsY=[]
+        kl=-1
+        for seg in e.getElementsByTagName('g'):
+            kl=kl+1
+            id=seg.getAttribute('id')
+
+            if id=='Door' or id=='Window':
+                xSeg,ySeg,orientSeg=getBBox(e.getElementsByTagName('g')[kl])
+
+                xSeg.sort()
+
+                xNew.append(xSeg[1])
+                xNew.append(xSeg[2])
+
+        xNew.sort()
+        count=0
+        for i in range(len(xNew)):
+            if i%2==0:
+
+                newWallsY.append(y)
+
+                newWallsX.append([xNew[i],xNew[i+1]])
+                count = count + 1
+
+        retWallsX = []
+        retWallsY = []
+        for i in range(len(newWallsY)):
+            retWallsX.append([newWallsX[i][0],newWallsX[i][1],newWallsX[i][1],newWallsX[i][0]])
+            retWallsY.append([newWallsY[i][0],newWallsY[i][0],newWallsY[i][3],newWallsY[i][3]])
+
+        return retWallsX,retWallsY
+
+
+
+
+
+
+
+
+
+
+
+
 def exportToXml(elements,x,y,orientation,path,width,height):
 
 
@@ -103,8 +220,10 @@ def validate(results,x,y,path):
             fill='black'
         if obj=='Window':
             fill='blue'
+
         if obj =='Door':
             fill='white'
+
         g=dwg.add(dwg.g(id=obj,fill=fill))
         xCoord=x[i]
         yCoord=y[i]
@@ -148,11 +267,11 @@ def getFixableDirection(x,y):
     temp1=copy.deepcopy(x)
     temp2=copy.deepcopy(y)
     temp1.sort()
-
-
-    if temp1[0]==temp1[1] and temp1[2]==temp1[3]:
-            return 'v'
     temp2.sort()
+
+    if temp1[0]==temp1[1] and temp1[2]==temp1[3] and (temp1[2]-temp1[1]<temp2[2]-temp2[1]):
+            return 'v'
+
 
     if temp2[0]==temp2[1] and temp2[2]==temp2[3]:
             return 'h'
