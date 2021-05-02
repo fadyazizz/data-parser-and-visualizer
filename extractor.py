@@ -6,9 +6,10 @@ import copy
 from xml.dom import minidom
 import numpy as np
 import cv2
+
 def main():
 
-    imgs_list = open('cubicasa5k/val.txt', 'r').readlines()
+    imgs_list = open('cubicasa5k/train.txt', 'r').readlines()
     for f in imgs_list:
         parse(f)
 
@@ -48,7 +49,8 @@ def parse(path):
                 x_res.append(x)
                 y_res.append(y)
                 orientation = np.append(orientation, orient)
-        if id=="Door" or id=="Window":
+        #removed door
+        if id=="Window":
             x, y, orient = getBBox(e)
             results = np.append(results, id)
             x_res.append(x)
