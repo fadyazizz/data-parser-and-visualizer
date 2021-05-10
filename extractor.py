@@ -8,7 +8,7 @@ import numpy as np
 import cv2
 def main():
 
-    imgs_list = open('cubicasa5k/val.txt', 'r').readlines()
+    imgs_list = open('cubicasa5k/test.txt', 'r').readlines()
     for f in imgs_list:
         parse(f)
 
